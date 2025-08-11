@@ -7,8 +7,10 @@
 `sudo apt install lsb-release`
 
 * Установка:
+
 `sudo apt install postgresql`
 
 * Проверка версии PostgreSQL:
-`sudo -u postgres psql -c \'select  version()\'`
+
+`sudo -u postgres psql -c 'select  version()'`
 
