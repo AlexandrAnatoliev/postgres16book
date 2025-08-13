@@ -1,0 +1,613 @@
+-- ДЕМОНСТРАЦИОННАЯ БАЗА ДАННЫХ
+
+
+-- УСТАНОВКА С САЙТА
+
+
+-- Переключаемся на пользователя postgres
+
+-- sudo su - postgres
+
+-- Скачиваем базу данных
+
+-- wget https://edu.postgrespro.ru/demo-small.zip
+-- zcat demo-small.zip | psql
+
+
+-- ПРИМЕРЫ ЗАПРОСОВ
+
+-- Запускаю psql
+
+-- sudo -u postgres psql
+
+-- Подключаюсь к демонстрационной базе
+
+-- postgres=# \c demo 
+-- You are now connected to database "demo" as user "postgres".
+-- demo=# 
+
+-- Таблица с самолетами
+
+SELECT * FROM aircrafts;
+
+-- aircraft_code |        model        | range 
+-----------------+---------------------+-------
+-- 773           | Боинг 777-300       | 11100
+-- 763           | Боинг 767-300       |  7900
+-- SU9           | Сухой Суперджет-100 |  3000
+-- 320           | Аэробус A320-200    |  5700
+-- 321           | Аэробус A321-200    |  5600
+-- 319           | Аэробус A319-100    |  6700
+-- 733           | Боинг 737-300       |  4200
+-- CN1           | Сессна 208 Караван  |  1200
+-- CR2           | Бомбардье CRJ-200   |  2700
+--(9 rows)
+
+-- Версия демонстрационной базы данных
+
+SELECT bookings.now();
+
+--          now           
+--------------------------
+-- 2017-08-15 18:00:00+03
+--(1 row)
+
+-- Названия моделей самолетов и городов выводятся по-русски
+
+SELECT airport_code, city
+FROM airports LIMIT 5;
+
+-- airport_code |           city           
+----------------+--------------------------
+-- YKS          | Якутск
+-- MJZ          | Мирный
+-- KHV          | Хабаровск
+-- PKC          | Петропавловск-Камчатский
+-- UUS          | Южно-Сахалинск
+--(5 rows)
+
+-- Меняем язык на уровне базы данных
+
+ALTER DATABASE demo SET bookings.lang = en;
+
+-- Подключаемся к базе данных заново
+
+-- demo=# \c
+-- You are now connected to database "demo" as user "postgres".
+
+-- Названия моделей самолетов и городов выводятся по-английски
+
+SELECT airport_code, city
+FROM airports LIMIT 5;
+
+-- airport_code |       city        
+----------------+-------------------
+-- YKS          | Yakutsk
+-- MJZ          | Mirnyj
+-- KHV          | Khabarovsk
+-- PKC          | Petropavlovsk
+-- UUS          | Yuzhno-Sakhalinsk
+--(5 rows)
+
+
+-- ПРОСТЫЕ ЗАПРОСЫ
+
+
+-- ЗАДАЧА: Кто летел позавчера рейсом Москва (SVO) - Новосибирск (OVB) на месте 1A и когда он забронировал себе билет?
+
+SELECT  t.passenger_name,
+        b.book_date
+FROM    bookings b
+        JOIN tickets t
+          ON t.book_ref = b.book_ref
+        JOIN boarding_passes bp
+          ON bp.ticket_no = t.ticket_no
+        JOIN flights f
+          ON f.flight_id = bp.flight_id
+WHERE   f.departure_airport = 'SVO'
+AND     f.arrival_airport = 'OVB'
+AND     f.scheduled_departure::date = bookings.now() - INTERVAL '2 day'
+AND     bp.seat_no = '1A';
+
+-- passenger_name | book_date 
+------------------+-----------
+--(0 rows)
+
+-- Все пассажиры этого рейса, сидевшие на этом месте
+
+SELECT  t.passenger_name,
+        b.book_date
+FROM    bookings b
+        JOIN tickets t
+          ON t.book_ref = b.book_ref
+        JOIN boarding_passes bp
+          ON bp.ticket_no = t.ticket_no
+        JOIN flights f
+          ON f.flight_id = bp.flight_id
+WHERE   f.departure_airport = 'SVO'
+AND     f.arrival_airport = 'OVB'
+AND     bp.seat_no = '1A';
+
+-- FLYURA ORLOVA       | 2017-07-31 09:31:00+03
+-- VALENTINA KOROLEVA  | 2017-07-10 16:17:00+03
+-- ELIZAVETA SEMENOVA  | 2017-07-17 21:41:00+03
+-- SVETLANA KUZNECOVA  | 2017-07-19 18:14:00+03
+-- YURIY VOROBEV       | 2017-07-04 00:40:00+03
+-- SERGEY TARASOV      | 2017-07-09 11:24:00+03
+-- NINA NAZAROVA       | 2017-07-26 19:41:00+03
+-- SERGEY SCHERBAKOV   | 2017-07-28 20:39:00+03
+-- EVGENIY SAVELEV     | 2017-07-09 06:28:00+03
+-- IVAN BORISOV        | 2017-07-12 18:57:00+03
+-- VARVARA ARKHIPOVA   | 2017-07-10 19:56:00+03
+-- NIKOLAY MIRONOV     | 2017-07-19 20:45:00+03
+-- ANASTASIYA BORISOVA | 2017-07-06 10:35:00+03
+-- EKATERINA BORISOVA  | 2017-07-16 01:25:00+03
+-- VLADIMIR ANTONOV    | 2017-07-13 17:45:00+03
+--(19 rows)
+
+
+-- ЗАДАЧА: Сколько мест осталось незанятыми вчера на рейсе PG0404?
+
+-- С помощью NOT EXISTS найдем места без посадочных талонов
+
+SELECT  count(*)
+FROM    flights f
+        JOIN seats s
+          ON s.aircraft_code = f.aircraft_code
+WHERE   f.flight_no = 'PG0404'
+AND     f.scheduled_departure::date = bookings.now()::date - INTERVAL '1 day'
+AND     NOT EXISTS (
+          SELECT NULL
+          FROM boarding_passes bp
+          WHERE bp.flight_id = f.flight_id
+          AND bp.seat_no = s.seat_no
+        );
+
+-- count 
+---------
+--    63
+--(1 row)
+
+-- Сколько всего было мест вчера на рейс PG0404
+
+SELECT  count(*)
+FROM    flights f
+        JOIN seats s
+          ON s.aircraft_code = f.aircraft_code
+WHERE   f.flight_no = 'PG0404'
+AND     f.scheduled_departure::date = bookings.now()::date - INTERVAL '1 day';
+
+-- count 
+---------
+--   170
+--(1 row)
+
+-- Решение с помощью вычитания множеств ("все билеты на рейс" - "Все пассажиры, севшие на рейс")
+
+SELECT count(*)
+FROM (
+  SELECT s.seat_no
+  FROM seats s
+  WHERE s.aircraft_code = (
+    SELECT aircraft_code
+    FROM flights
+    WHERE flight_no = 'PG0404'
+    AND scheduled_departure::date = bookings.now()::date - INTERVAL '1 day'
+  )
+  EXCEPT
+  SELECT bp.seat_no
+  FROM boarding_passes bp
+  WHERE bp.flight_id = (
+    SELECT flight_id
+    FROM flights
+    WHERE flight_no = 'PG0404'
+    AND scheduled_departure::date = bookings.now()::date - INTERVAL '1 day'
+  )
+) t;
+
+-- count 
+---------
+--    63
+--(1 row)
+
+-- все билеты на рейс:
+
+SELECT count(*)
+FROM (
+  SELECT s.seat_no
+  FROM seats s
+  WHERE s.aircraft_code = (
+    SELECT aircraft_code
+    FROM flights
+    WHERE flight_no = 'PG0404'
+    AND scheduled_departure::date = bookings.now()::date - INTERVAL '1 day'
+  ) 
+);
+
+-- count 
+---------
+--   170
+--(1 row)
+
+-- Все пассажиры, севшие на рейс
+
+SELECT count(*)
+FROM (
+  SELECT bp.seat_no
+  FROM boarding_passes bp
+  WHERE bp.flight_id = (  
+    SELECT flight_id
+    FROM flights
+    WHERE flight_no = 'PG0404'
+    AND scheduled_departure::date = bookings.now()::date - INTERVAL '1 day'
+  )                                                                        
+);                                                                        
+
+-- count 
+---------
+--   107
+--(1 row)
+
+
+-- ЗАДАЧА: на каких рейсах происходили самые длительные задержки? Выведите список из 10 рейсов, задержанных на самые длительные сроки.
+
+SELECT    f.flight_no,
+          f.scheduled_departure,
+          f.actual_departure,
+          f.actual_departure - f.scheduled_departure
+          AS delay
+FROM      flights f
+WHERE     f.actual_departure IS NOT NULL
+ORDER BY  f.actual_departure - f.scheduled_departure
+          DESC
+LIMIT 10;
+
+-- flight_no |  scheduled_departure   |    actual_departure    |  delay   
+-------------+------------------------+------------------------+----------
+-- PG0589    | 2017-07-29 15:30:00+03 | 2017-07-29 20:07:00+03 | 04:37:00
+-- PG0164    | 2017-07-29 15:25:00+03 | 2017-07-29 19:53:00+03 | 04:28:00
+-- PG0364    | 2017-07-19 11:45:00+03 | 2017-07-19 16:12:00+03 | 04:27:00
+-- PG0568    | 2017-08-13 16:15:00+03 | 2017-08-13 20:35:00+03 | 04:20:00
+-- PG0454    | 2017-08-02 10:05:00+03 | 2017-08-02 14:23:00+03 | 04:18:00
+-- PG0096    | 2017-08-03 16:35:00+03 | 2017-08-03 20:53:00+03 | 04:18:00
+-- PG0166    | 2017-08-12 14:35:00+03 | 2017-08-12 18:51:00+03 | 04:16:00
+-- PG0278    | 2017-07-16 14:20:00+03 | 2017-07-16 18:36:00+03 | 04:16:00
+-- PG0564    | 2017-08-10 09:30:00+03 | 2017-08-10 13:44:00+03 | 04:14:00
+-- PG0669    | 2017-07-19 16:15:00+03 | 2017-07-19 20:23:00+03 | 04:08:00
+--(10 rows)
+
+-- 10 рейсов с минимальной задержкой
+
+demo=# SELECT    f.flight_no,
+          f.scheduled_departure,
+          f.actual_departure,
+          f.actual_departure - f.scheduled_departure
+          AS delay
+FROM      flights f
+WHERE     f.actual_departure IS NOT NULL
+ORDER BY  f.actual_departure - f.scheduled_departure
+LIMIT 10;     
+
+-- flight_no |  scheduled_departure   |    actual_departure    |  delay   
+-------------+------------------------+------------------------+----------
+-- PG0405    | 2017-07-30 09:35:00+03 | 2017-07-30 09:35:00+03 | 00:00:00
+-- PG0404    | 2017-07-31 19:05:00+03 | 2017-07-31 19:05:00+03 | 00:00:00
+-- PG0404    | 2017-08-14 19:05:00+03 | 2017-08-14 19:05:00+03 | 00:00:00
+-- PG0404    | 2017-07-24 19:05:00+03 | 2017-07-24 19:05:00+03 | 00:00:00
+-- PG0405    | 2017-08-08 09:35:00+03 | 2017-08-08 09:35:00+03 | 00:00:00
+-- PG0404    | 2017-08-06 19:05:00+03 | 2017-08-06 19:05:00+03 | 00:00:00
+-- PG0403    | 2017-08-08 11:25:00+03 | 2017-08-08 11:25:00+03 | 00:00:00
+-- PG0402    | 2017-07-17 12:25:00+03 | 2017-07-17 12:25:00+03 | 00:00:00
+-- PG0403    | 2017-07-29 11:25:00+03 | 2017-07-29 11:25:00+03 | 00:00:00
+-- PG0405    | 2017-07-26 09:35:00+03 | 2017-07-26 09:35:00+03 | 00:00:00
+--(10 rows)
+
+
+-- АГРЕГАТНЫЕ ФУНКЦИИ
+
+
+-- ЗАДАЧА: Какова минимальная и максимальная продолжительность полета для каждого из возможных рейсов из Москвы в Санкт-Петербург,
+-- и сколько раз вылет рейса был задержан больше, чем на час?
+
+SELECT    f.flight_no,
+          f.scheduled_duration,
+          min(f.actual_duration),
+          max(f.actual_duration),
+          sum(CASE  WHEN  f.actual_departure >
+                          f.scheduled_departure + 
+                          INTERVAL '1 hour'
+                    THEN 1 ELSE 0
+              END) delays
+FROM      flights_v f
+WHERE     f.departure_city = 'Москва'
+AND       f.arrival_city = 'Санкт-Петербург'
+AND       f.status = 'Arrived'
+GROUP BY  f.flight_no,
+          f.scheduled_duration;
+
+-- flight_no | scheduled_duration | min | max | delays 
+-------------+--------------------+-----+-----+--------
+--(0 rows)
+
+-- Города пишем по-английски, т.к. база данных переключена на английский
+
+SELECT    f.flight_no,
+          f.scheduled_duration,
+          min(f.actual_duration),
+          max(f.actual_duration),
+          sum(CASE  WHEN  f.actual_departure >
+                          f.scheduled_departure + 
+                          INTERVAL '1 hour'
+                    THEN 1 ELSE 0
+              END) delays
+FROM      flights_v f
+WHERE     f.departure_city = 'Moscow'
+AND       f.arrival_city = 'St. Petersburg'
+AND       f.status = 'Arrived'
+GROUP BY  f.flight_no,
+          f.scheduled_duration;
+
+-- flight_no | scheduled_duration |   min    |   max    | delays 
+-------------+--------------------+----------+----------+--------
+-- PG0227    | 00:50:00           | 00:49:00 | 00:51:00 |      1
+-- PG0228    | 00:50:00           | 00:49:00 | 00:51:00 |      3
+-- PG0229    | 00:50:00           | 00:49:00 | 00:51:00 |      2
+-- PG0402    | 00:55:00           | 00:54:00 | 00:57:00 |      2
+-- PG0403    | 00:55:00           | 00:54:00 | 00:57:00 |      2
+-- PG0404    | 00:55:00           | 00:54:00 | 00:56:00 |      3
+-- PG0405    | 00:55:00           | 00:54:00 | 00:56:00 |      1
+-- PG0468    | 00:50:00           | 00:49:00 | 00:51:00 |      0
+-- PG0469    | 00:50:00           | 00:49:00 | 00:51:00 |      5
+-- PG0470    | 00:50:00           | 00:49:00 | 00:51:00 |      1
+-- PG0471    | 00:50:00           | 00:49:00 | 00:51:00 |      1
+-- PG0472    | 00:50:00           | 00:49:00 | 00:51:00 |      3
+--(12 rows)
+
+
+-- ЗАДАЧА: Найти самых дисциплинированных пассажиров, которые зарегистрировались на все рейсы первыми.
+-- Учитывайте только тех пассажиров, которые совершали минимум два рейса.
+
+-- Учитываем тот файкт, что номера посадочных талонов выдаются в порядке регистрации.
+
+SELECT    t.passenger_name,
+          t.ticket_no
+FROM      tickets t
+          JOIN boarding_passes bp
+            ON bp.ticket_no = t.ticket_no
+GROUP BY  t.passenger_name,
+          t.ticket_no
+HAVING    max(bp.boarding_no) = 1
+AND       count(*) > 1;
+
+--    passenger_name    |   ticket_no   
+------------------------+---------------
+-- VIKTOR BELOV         | 0005432054255
+-- YULIYA SOROKINA      | 0005432146218
+-- NIKOLAY SCHERBAKOV   | 0005432195667
+-- ANDREY FROLOV        | 0005432293170
+-- ANNA ANDREEVA        | 0005432295838
+-- ALEKSANDR MARTYNOV   | 0005432359667
+-- ANNA MATVEEVA        | 0005432398234
+-- KONSTANTIN KAZAKOV   | 0005432427125
+-- SERGEY VOROBEV       | 0005432566574
+-- ALEKSANDR FILIPPOV   | 0005432675028
+-- NINA LOGINOVA        | 0005432784253
+-- ALEKSANDR MAKAROV    | 0005432862259
+-- ANASTASIYA MELNIKOVA | 0005432984664
+-- MARIYA EGOROVA       | 0005433057209
+-- NADEZHDA ROMANOVA    | 0005433060382
+
+-- то же самое, но с ограничением 10 человек
+
+SELECT    t.passenger_name,
+          t.ticket_no
+FROM      tickets t
+          JOIN boarding_passes bp
+            ON bp.ticket_no = t.ticket_no
+GROUP BY  t.passenger_name,
+          t.ticket_no
+HAVING    max(bp.boarding_no) = 1
+AND       count(*) > 1
+LIMIT     10;
+
+--   passenger_name   |   ticket_no   
+----------------------+---------------
+-- VIKTOR BELOV       | 0005432054255
+-- YULIYA SOROKINA    | 0005432146218
+-- NIKOLAY SCHERBAKOV | 0005432195667
+-- ANDREY FROLOV      | 0005432293170
+-- ANNA ANDREEVA      | 0005432295838
+-- ALEKSANDR MARTYNOV | 0005432359667
+-- ANNA MATVEEVA      | 0005432398234
+-- KONSTANTIN KAZAKOV | 0005432427125
+-- SERGEY VOROBEV     | 0005432566574
+-- ALEKSANDR FILIPPOV | 0005432675028
+--(10 rows)
+
+-- ЗАДАЧА: Сколько пассажиров приходится на одно бронирование?
+
+SELECT    tt.cnt,     -- количество пассажиров в каждом бронировании
+          count(*)    -- количество бронирований с каждым вариантом количества пассажиров
+FROM      (
+            SELECT    t.book_ref,
+                      count(*) cnt
+            FROM      tickets t
+            GROUP BY  t.book_ref
+          ) tt
+GROUP BY  tt.cnt
+ORDER BY  tt.cnt;
+
+-- cnt | count  
+-------+--------
+--   1 | 173390
+--   2 |  75793
+--   3 |  12686
+--   4 |    896
+--   5 |     23
+--(5 rows)
+
+-- количество пассажиров в каждом бронировании
+
+SELECT    t.book_ref,
+          count(*) cnt
+FROM      tickets t
+GROUP BY  t.book_ref;
+
+-- book_ref | cnt 
+------------+-----
+-- C92964   |   1
+-- 98B6E6   |   1
+-- 2A4792   |   2
+-- DC7310   |   2
+-- 609970   |   1
+-- 453C9F   |   2
+-- 017036   |   2
+-- 3EFFB3   |   1
+-- 059EF0   |   1
+-- 03072F   |   1
+-- 3BD3FD   |   2
+-- A49B68   |   2
+-- E07800   |   1
+-- 5E5A4F   |   1
+-- 44E52C   |   2
+
+
+-- ОКОННЫЕ ФУНКЦИИ
+
+
+-- ЗАДАЧА: для каждого билета выведите входящие в него перелеты вместе с запасом времени на пересадку на следующий рейс.
+-- Ограничьте выборку теми билетами, которые были забронированы 7 днями ранее.
+
+SELECT  tf.ticket_no,
+        f.departure_airport,
+        f.arrival_airport,
+        f.scheduled_arrival,
+        lead(f.scheduled_departure) OVER w
+        AS next_departure,
+        lead(f.scheduled_departure) OVER w - f.scheduled_arrival
+        AS gap
+FROM    bookings b
+        JOIN tickets t
+          ON t.book_ref = b.book_ref
+        JOIN ticket_flights tf
+          ON tf.ticket_no = t.ticket_no
+        JOIN flights f
+          ON tf.flight_id = f.flight_id
+WHERE   b.book_date = bookings.now()::date - INTERVAL '7 day'
+WINDOW w AS (
+          PARTITION BY tf.ticket_no
+          ORDER BY f.scheduled_departure);
+
+--   ticket_no   | departure_airport | arrival_airport |   scheduled_arrival    |     next_departure     |       gap       
+-----------------+-------------------+-----------------+------------------------+------------------------+-----------------
+-- 0005432748291 | DME               | CEK             | 2017-08-21 11:50:00+03 | 2017-08-29 15:50:00+03 | 8 days 04:00:00
+-- 0005432748291 | CEK               | DME             | 2017-08-29 17:50:00+03 |                        | 
+-- 0005433570172 | DME               | KZN             | 2017-08-20 11:35:00+03 | 2017-08-21 10:15:00+03 | 22:40:00
+-- 0005433570172 | KZN               | IKT             | 2017-08-21 14:55:00+03 | 2017-08-30 13:10:00+03 | 8 days 22:15:00
+-- 0005433570172 | IKT               | KZN             | 2017-08-30 17:50:00+03 | 2017-08-31 17:45:00+03 | 23:55:00
+-- 0005433570172 | KZN               | DME             | 2017-08-31 18:40:00+03 |                        | 
+-- 0005434351952 | VKO               | MQF             | 2017-08-22 16:00:00+03 | 2017-08-30 08:55:00+03 | 7 days 16:55:00
+-- 0005434351952 | MQF               | VKO             | 2017-08-30 10:55:00+03 |                        | 
+-- 0005434351953 | VKO               | MQF             | 2017-08-22 16:00:00+03 | 2017-08-30 08:55:00+03 | 7 days 16:55:00
+-- 0005434351953 | MQF               | VKO             | 2017-08-30 10:55:00+03 |                        | 
+-- 0005434505082 | SVO               | OVS             | 2017-08-25 18:50:00+03 | 2017-08-26 14:45:00+03 | 19:55:00
+-- 0005434505082 | OVS               | NJC             | 2017-08-26 15:45:00+03 | 2017-09-04 11:15:00+03 | 8 days 19:30:00
+-- 0005434505082 | NJC               | OVS             | 2017-09-04 12:15:00+03 | 2017-09-05 13:40:00+03 | 1 day 01:25:00
+-- 0005434505082 | OVS               | SVO             | 2017-09-05 15:50:00+03 |                        | 
+-- 0005434926468 | SVO               | GOJ             | 2017-08-22 15:15:00+03 | 2017-08-23 16:35:00+03 | 1 day 01:20:00
+
+-- ЗАДАЧА: Какие сочетания имен и фамилий встречаются чаще всего и какую долю от числа всех пассажиров они составляют?
+
+SELECT    passenger_name,
+          round( 100.0 * cnt / sum(cnt) OVER (), 2)
+          AS percent
+FROM      (
+            SELECT    passenger_name,
+                      count(*) cnt
+            FROM      tickets
+            GROUP BY  passenger_name
+          ) t 
+ORDER BY  percent DESC;
+
+--     passenger_name      | percent 
+---------------------------+---------
+-- ALEKSANDR IVANOV        |    0.23
+-- ALEKSANDR KUZNECOV      |    0.21
+-- SERGEY IVANOV           |    0.17
+-- SERGEY KUZNECOV         |    0.16
+-- VLADIMIR IVANOV         |    0.15
+-- ALEKSANDR POPOV         |    0.13
+-- VLADIMIR KUZNECOV       |    0.13
+-- ALEKSANDR PETROV        |    0.12
+-- ELENA KUZNECOVA         |    0.12
+-- TATYANA IVANOVA         |    0.12
+-- ALEKSANDR VASILEV       |    0.11
+-- ALEKSEY KUZNECOV        |    0.11
+-- TATYANA KUZNECOVA       |    0.11
+-- OLGA IVANOVA            |    0.10
+-- SERGEY POPOV            |    0.10
+
+-- ЗАДАЧА: решите предыдущую задачу отдельно для имен и отдельно для фамилий
+
+-- Подсчет имен
+
+WITH p AS (
+  SELECT  left(passenger_name,
+              position(' ' IN passenger_name))
+          AS passenger_name
+  FROM    tickets
+)
+SELECT    passenger_name,
+          round( 100.0 * cnt / sum(cnt) OVER (), 2)
+          AS percent
+FROM      (
+            SELECT    passenger_name,
+                      count(*) cnt
+            FROM      p
+            GROUP BY  passenger_name
+          ) t
+ORDER BY  percent DESC;
+
+-- passenger_name | percent 
+------------------+---------
+-- ALEKSANDR      |    5.54
+-- SERGEY         |    4.13
+-- VLADIMIR       |    3.49
+-- TATYANA        |    3.29
+-- ELENA          |    3.08
+-- OLGA           |    2.73
+-- NATALYA        |    2.65
+-- ALEKSEY        |    2.61
+-- VALENTINA      |    2.19
+
+-- Подсчет фамилий
+
+WITH p AS (
+  SELECT  right(passenger_name,
+              position(' ' IN passenger_name))
+          AS passenger_name
+  FROM    tickets
+)
+SELECT    passenger_name,
+          round( 100.0 * cnt / sum(cnt) OVER (), 2)
+          AS percent
+FROM      (
+            SELECT    passenger_name,
+                      count(*) cnt
+            FROM      p
+            GROUP BY  passenger_name
+          ) t
+ORDER BY  percent DESC;
+
+-- passenger_name | percent 
+------------------+---------
+-- ANOVA          |    0.61
+-- KUZNECOV       |    0.50
+--  IVANOV        |    0.49
+-- Y IVANOV       |    0.44
+-- UZNECOV        |    0.44
+-- IVANOVA        |    0.44
+-- ZNECOVA        |    0.39
+-- AROVA          |    0.34
+-- IKOVA          |    0.31
+
