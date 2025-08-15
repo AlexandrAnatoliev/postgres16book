@@ -4,6 +4,10 @@
 -- ОТДЕЛЬНЫЙ ПОЛЬЗОВАТЕЛЬ
 
 
+--Подключение с помощью psql
+
+-- sudo -u postqres psql
+
 -- создать нового пользователя 
 
 CREATE USER app PASSWORD 'p@ssw0rd'; 
@@ -43,3 +47,12 @@ INSERT INTO greeting VALUES ('Привет, мир!');
 
 -- если не работает, то:
 -- pg_dump -U app -h localhost -d appdb -f appdb.dump
+
+-- либо заходим через sudo в пользователя postgres
+-- sudo -u postgres pg_dump appdb > appdb.dump 
+
+-- создать новую базу данных
+-- createdb appdb2
+
+-- Если не работает
+-- sudo -u postgres createdb appdb2
