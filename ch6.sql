@@ -56,3 +56,10 @@ INSERT INTO greeting VALUES ('Привет, мир!');
 
 -- Если не работает
 -- sudo -u postgres createdb appdb2
+
+-- Восстановить содержимое базы данных в новую базу
+-- psql -d appdb2 -f appdb.dump
+
+-- если не работает
+-- psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "alexandr" does not exist
+-- sudo -u postgres psql -d appdb2 -f appdb.dump
