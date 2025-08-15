@@ -4,3 +4,4 @@
 * [Пробуем SQL](ch4.sql)
 * [Демонстрационная база данных](ch5.sql)
 * [PostgreSQL для приложений](ch6.sql)
+* [Настройка PostgreSQL](ch7.sql)
