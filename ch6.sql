@@ -6,7 +6,7 @@
 
 --Подключение с помощью psql
 
--- sudo -u postqres psql
+-- sudo -u postgres psql
 
 -- создать нового пользователя 
 
